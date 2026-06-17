@@ -4,16 +4,16 @@
   
   <name>Rog Control Center</name>
   <summary>A one-stop-shop GUI tool for asusd/asusctl</summary>
-  <icon type="remote">https://gitlab.com/asus-linux/asusctl/-/blob/main/rog-control-center/data/rog-control-center.png</icon>
+  <icon type="remote">https://github.com/OpenGamingCollective/asusctl/blob/main/rog-control-center/data/rog-control-center.png</icon>
   
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MPL-2.0</project_license>
   
   <url type="homepage">https://asus-linux.org</url>
-  <url type="bugtracker">https://gitlab.com/asus-linux/asusctl/-/issues</url>
+  <url type="bugtracker">https://github.com/OpenGamingCollective/asusctl/issues</url>
   <url type="faq">https://asus-linux.org/faq/</url>
   <url type="help">https://asus-linux.org/manual/</url>
-  <url type="vcs-browser">https://gitlab.com/asus-linux</url>
+  <url type="vcs-browser">https://github.com/OpenGamingCollective/asusctl</url>
 
   <categories>
     <category>System</category>
