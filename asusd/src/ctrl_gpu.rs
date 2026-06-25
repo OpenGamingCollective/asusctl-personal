@@ -4,6 +4,7 @@
 //! and exposes it over D-Bus for the tray icon and other clients.
 
 use log::{error, info, warn};
+use mio::{Events, Interest, Poll, Token};
 use rog_platform::gpu_pci::{GfxPower, GfxVendor};
 use zbus::object_server::SignalEmitter;
 use zbus::{interface, Connection};
@@ -260,8 +261,8 @@ impl CtrlGpu {
 
                 // No dGPU path available, wait for PCI hotplug event via udev
                 info!("CtrlGpu: waiting for PCI hotplug event via udev...");
-                let hotplugged = tokio::task::spawn_blocking(move || {
-                    let monitor = match udev::MonitorBuilder::new() {
+                let hotplugged = tokio::task::spawn_blocking(|| {
+                    let mut monitor = match udev::MonitorBuilder::new() {
                         Ok(builder) => match builder.match_subsystem("pci") {
                             Ok(builder) => match builder.listen() {
                                 Ok(m) => m,
@@ -281,15 +282,40 @@ impl CtrlGpu {
                         }
                     };
 
-                    for event in monitor.iter() {
-                        if let Some(action) = event.action() {
-                            if action.to_str() == Some("add") {
-                                info!("CtrlGpu: PCI device added");
-                                return true;
+                    // Block until the kernel signals that a udev event is available
+                    let mut poll = match Poll::new() {
+                        Ok(p) => p,
+                        Err(e) => {
+                            error!("CtrlGpu: failed to create mio::Poll: {e}");
+                            return false;
+                        }
+                    };
+                    let mut events = Events::with_capacity(1);
+                    const UDEV: Token = Token(0);
+
+                    if let Err(e) = poll.registry().register(
+                        &mut monitor,
+                        UDEV,
+                        Interest::READABLE,
+                    ) {
+                        error!("CtrlGpu: failed to register udev monitor with mio: {e}");
+                        return false;
+                    }
+
+                    loop {
+                        if let Err(e) = poll.poll(&mut events, None) {
+                            error!("CtrlGpu: mio poll failed: {e}");
+                            return false;
+                        }
+                        for event in monitor.iter() {
+                            if let Some(action) = event.action() {
+                                if action.to_str() == Some("add") {
+                                    info!("CtrlGpu: PCI device added via hotplug");
+                                    return true;
+                                }
                             }
                         }
                     }
-                    false
                 })
                 .await
                 .unwrap_or(false);
@@ -302,7 +328,8 @@ impl CtrlGpu {
                             .await;
                     }
                 } else {
-                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                    // udev monitor setup failed, back off before retrying
+                    tokio::time::sleep(std::time::Duration::from_secs(30)).await;
                 }
             }
         });
