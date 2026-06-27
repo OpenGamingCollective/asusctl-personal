@@ -9,7 +9,7 @@ homepage = "https://gitlab.com/asus-linux/asusctl"
 documentation = "https://docs.rs/rog-anime"
 description = "Types useful for fancy keyboards on ASUS ROG laptops"
 keywords = ["ROG", "ASUS", "Aura"]
-edition = "2021"
+edition.workspace = true
 exclude = ["data"]
 
 [features]

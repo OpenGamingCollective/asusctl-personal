@@ -1,6 +1,6 @@
 [workspace.package]
 version = "6.3.8"
-rust-version = "1.82"
+rust-version = "1.95"
 license = "MPL-2.0"
 readme = "README.md"
 authors = [
@@ -10,7 +10,8 @@ authors = [
 repository = "https://gitlab.com/asus-linux/asusctl"
 homepage = "https://gitlab.com/asus-linux/asusctl"
 description = "Laptop feature control for ASUS ROG laptops and others"
-edition = "2021"
+edition = "2024"
+
 
 [workspace]
 resolver = "2"
