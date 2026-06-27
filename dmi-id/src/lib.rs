@@ -33,51 +33,31 @@ impl DMIID {
         })?;
 
         if let Some(device) = (result).next() {
+            let get_prop = |name| {
+                device
+                    .property_value(name)
+                    .map(|s| s.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| "Unknown".to_string())
+            };
+            let get_attr = |name| {
+                device
+                    .attribute_value(name)
+                    .map(|s| s.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| "Unknown".to_string())
+            };
+
             return Ok(Self {
-                id_model: device
-                    .property_value("ID_MODEL")
-                    .map(|s| s.to_string_lossy().to_string())
-                    .unwrap_or("Unknown".to_string()),
-                dmi_family: device
-                    .property_value("DMI_FAMILY")
-                    .map(|s| s.to_string_lossy().to_string())
-                    .unwrap_or("Unknown".to_string()),
-                dmi_vendor: device
-                    .property_value("DMI_VENDOR")
-                    .map(|s| s.to_string_lossy().to_string())
-                    .unwrap_or("Unknown".to_string()),
-                board_name: device
-                    .attribute_value("board_name")
-                    .map(|s| s.to_string_lossy().to_string())
-                    .unwrap_or("Unknown".to_string()),
-                board_vendor: device
-                    .attribute_value("board_vendor")
-                    .map(|s| s.to_string_lossy().to_string())
-                    .unwrap_or("Unknown".to_string()),
-                bios_date: device
-                    .attribute_value("bios_date")
-                    .map(|s| s.to_string_lossy().to_string())
-                    .unwrap_or("Unknown".to_string()),
-                bios_release: device
-                    .attribute_value("bios_release")
-                    .map(|s| s.to_string_lossy().to_string())
-                    .unwrap_or("Unknown".to_string()),
-                bios_vendor: device
-                    .attribute_value("bios_vendor")
-                    .map(|s| s.to_string_lossy().to_string())
-                    .unwrap_or("Unknown".to_string()),
-                bios_version: device
-                    .attribute_value("bios_version")
-                    .map(|s| s.to_string_lossy().to_string())
-                    .unwrap_or("Unknown".to_string()),
-                product_family: device
-                    .attribute_value("product_family")
-                    .map(|s| s.to_string_lossy().to_string())
-                    .unwrap_or("Unknown".to_string()),
-                product_name: device
-                    .attribute_value("product_name")
-                    .map(|s| s.to_string_lossy().to_string())
-                    .unwrap_or("Unknown".to_string()),
+                id_model: get_prop("ID_MODEL"),
+                dmi_family: get_prop("DMI_FAMILY"),
+                dmi_vendor: get_prop("DMI_VENDOR"),
+                board_name: get_attr("board_name"),
+                board_vendor: get_attr("board_vendor"),
+                bios_date: get_attr("bios_date"),
+                bios_release: get_attr("bios_release"),
+                bios_vendor: get_attr("bios_vendor"),
+                bios_version: get_attr("bios_version"),
+                product_family: get_attr("product_family"),
+                product_name: get_attr("product_name"),
             });
         }
         Err("dmi not found".into())

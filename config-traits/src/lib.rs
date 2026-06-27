@@ -39,15 +39,8 @@ where
         }
         config.push(self.file_name());
         let mut do_rename = !config.exists();
-        let mut cfg_old = config.clone();
+        let mut cfg_old = config.with_extension("cfg");
         // Migrating all configs to .ron format, so we do need to check for older ones
-        if do_rename {
-            warn!("Config {cfg_old:?} does not exist, looking for .cfg next");
-            cfg_old.pop();
-            let tmp = self.file_name();
-            let parts: Vec<_> = tmp.split('.').collect();
-            cfg_old.push(format!("{}.cfg", parts[0]));
-        }
         if do_rename && cfg_old.exists() {
             // Now we gotta rename it
             warn!("Renaming {cfg_old:?} to {config:?}");
@@ -60,23 +53,19 @@ where
             });
             do_rename = false;
         }
-        if do_rename && !cfg_old.exists() {
-            warn!("Config {cfg_old:?} does not exist, looking for .conf next");
-            cfg_old.pop();
-            let tmp = self.file_name();
-            let parts: Vec<_> = tmp.split('.').collect();
-            cfg_old.push(format!("{}.conf", parts[0]));
-        }
-        if do_rename && cfg_old.exists() {
-            // Now we gotta rename it
-            warn!("Renaming {cfg_old:?} to {config:?}");
-            std::fs::rename(&cfg_old, &config).unwrap_or_else(|err| {
-                error!(
-                    "Could not rename. Please remove {} then restart service: Error {}",
-                    self.file_name(),
-                    err
-                );
-            });
+        if do_rename {
+            cfg_old = config.with_extension("conf");
+            if cfg_old.exists() {
+                // Now we gotta rename it
+                warn!("Renaming {cfg_old:?} to {config:?}");
+                std::fs::rename(&cfg_old, &config).unwrap_or_else(|err| {
+                    error!(
+                        "Could not rename. Please remove {} then restart service: Error {}",
+                        self.file_name(),
+                        err
+                    );
+                });
+            }
         }
         config
     }
@@ -147,8 +136,12 @@ where
     /// Renames the existing file to `<file>-old`
     fn rename_file_old(&self) {
         warn!("Renaming {} to {}-old", self.file_name(), self.file_name());
-        let mut cfg_old = self.file_path().to_string_lossy().to_string();
-        cfg_old.push_str("-old");
+        let mut cfg_old = self.file_path();
+        if let Some(name) = cfg_old.file_name() {
+            let mut name = name.to_os_string();
+            name.push("-old");
+            cfg_old.set_file_name(name);
+        }
         std::fs::rename(self.file_path(), cfg_old).unwrap_or_else(|err| {
             error!(
                 "Could not rename. Please remove {} then restart service: Error {}",
