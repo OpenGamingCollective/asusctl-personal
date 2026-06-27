@@ -22,7 +22,6 @@ log.workspace = true
 env_logger.workspace = true
 
 ron.workspace = true
-gumdrop.workspace = true
 zbus.workspace = true
 argh = "0.1"
 

@@ -44,7 +44,6 @@ tokio = { version = "^1.39.0", default-features = false, features = [
 ] }
 concat-idents = "^1.1"
 dirs = "^4.0"
-smol = "^2.0"
 mio = "0.8.11"
 
 futures-util = "0.3.31"
@@ -66,7 +65,6 @@ inotify = "^0.10"
 
 png_pong = "^0.8"
 pix = "^0.13"
-tinybmp = "^0.4"
 gif = "^0.12"
 
 notify-rust = { version = "4.11.5", features = ["z", "async"] }
