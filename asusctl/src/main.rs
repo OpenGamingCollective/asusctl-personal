@@ -7,7 +7,7 @@ use anime_cli::{AnimeActions, AnimeCommand};
 use aura_cli::{LedPowerCommand1, LedPowerCommand2};
 use dmi_id::DMIID;
 use fan_curve_cli::FanCurveCommand;
-use log::{error, info, LevelFilter};
+use log::{LevelFilter, error, info};
 use rog_anime::usb::get_anime_type;
 use rog_anime::{AnimTime, AnimeDataBuffer, AnimeDiagonal, AnimeGif, AnimeImage, AnimeType, Vec2};
 use rog_aura::keyboard::{AuraPowerState, LaptopAuraPower};
@@ -25,12 +25,12 @@ use rog_profiles::error::ProfileError;
 use rog_scsi::AuraMode;
 use ron::ser::PrettyConfig;
 use scsi_cli::ScsiCommand;
-use zbus::blocking::proxy::ProxyImpl;
 use zbus::blocking::Connection;
+use zbus::blocking::proxy::ProxyImpl;
 
 use crate::cli_opts::*;
 use crate::slash_cli::{
-    handle_slash_get, handle_slash_list, handle_slash_set, SlashCommand, SlashSubCommand,
+    SlashCommand, SlashSubCommand, handle_slash_get, handle_slash_list, handle_slash_set,
 };
 
 mod anime_cli;
@@ -44,7 +44,9 @@ mod xgm_led_cli;
 fn main() {
     // Ensure tracing spans are quiet by default unless user overrides
     if std::env::var_os("RUST_LOG").is_none() {
-        std::env::set_var("RUST_LOG", "warn,tracing=error,zbus=error");
+        unsafe {
+            std::env::set_var("RUST_LOG", "warn,tracing=error,zbus=error");
+        }
     }
     let mut logger = env_logger::Builder::new();
     logger
@@ -428,7 +430,9 @@ fn handle_anime(cmd: &AnimeCommand) -> Result<(), Box<dyn std::error::Error>> {
                 }
                 AnimeActions::PixelImage(image) => {
                     if image.path.is_empty() {
-                        println!("Missing arg or command; run 'asusctl anime pixel-image --help' for usage");
+                        println!(
+                            "Missing arg or command; run 'asusctl anime pixel-image --help' for usage"
+                        );
                         return Ok(());
                     }
                     verify_brightness(image.bright);
@@ -477,7 +481,9 @@ fn handle_anime(cmd: &AnimeCommand) -> Result<(), Box<dyn std::error::Error>> {
                 }
                 AnimeActions::PixelGif(gif) => {
                     if gif.path.is_empty() {
-                        println!("Missing arg or command; run 'asusctl anime pixel-gif --help' for usage");
+                        println!(
+                            "Missing arg or command; run 'asusctl anime pixel-gif --help' for usage"
+                        );
                         return Ok(());
                     }
                     verify_brightness(gif.bright);

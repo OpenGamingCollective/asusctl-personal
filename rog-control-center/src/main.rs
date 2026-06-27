@@ -8,7 +8,7 @@ use std::time::Duration;
 use config_traits::{StdConfig, StdConfigLoad1};
 use dmi_id::DMIID;
 use gumdrop::Options;
-use log::{debug, info, warn, LevelFilter};
+use log::{LevelFilter, debug, info, warn};
 use rog_control_center::cli_options::CliStart;
 use rog_control_center::config::Config;
 use rog_control_center::error::Result;
@@ -19,14 +19,16 @@ use rog_control_center::ui::setup_window;
 use rog_control_center::zbus_proxies::{
     AppState, ROGCCZbus, ROGCCZbusProxyBlocking, ZBUS_IFACE, ZBUS_PATH,
 };
-use rog_control_center::{print_versions, MainWindow};
+use rog_control_center::{MainWindow, print_versions};
 use tokio::runtime::Runtime;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     // Ensure tracing spans are quiet by default unless user overrides
     if std::env::var_os("RUST_LOG").is_none() {
-        std::env::set_var("RUST_LOG", "warn,tracing=error,zbus=error");
+        unsafe {
+            std::env::set_var("RUST_LOG", "warn,tracing=error,zbus=error");
+        }
     }
     let mut logger = env_logger::Builder::new();
     logger
@@ -43,14 +45,18 @@ async fn main() -> Result<()> {
         debug!("Gamescope detected");
         if !gamescope.is_empty() {
             debug!("Setting WAYLAND_DISPLAY to {}", gamescope);
-            env::set_var("WAYLAND_DISPLAY", gamescope);
+            unsafe {
+                env::set_var("WAYLAND_DISPLAY", gamescope);
+            }
         }
         // gamescope-0
         else if let Ok(wayland) = env::var("WAYLAND_DISPLAY") {
             debug!("Wayland display detected");
             if wayland.is_empty() {
                 debug!("Setting WAYLAND_DISPLAY to gamescope-0");
-                env::set_var("WAYLAND_DISPLAY", "gamescope-0");
+                unsafe {
+                    env::set_var("WAYLAND_DISPLAY", "gamescope-0");
+                }
             }
         }
     }
