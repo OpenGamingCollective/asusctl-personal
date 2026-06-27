@@ -285,7 +285,6 @@ impl AsusArmouryAttribute {
         if !matches!(self.attr.possible_values(), AttrValue::None) {
             attrs.push("possible_values".to_string());
         }
-        // TODO: Don't unwrap, use error
         if let Ok(value) = self.attr.current_value().map_err(|e| {
             error!("Failed to read: {e:?}");
             e
