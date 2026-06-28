@@ -10,6 +10,8 @@ export global AppSettingsPageData {
     callback set_enable_tray_icon(bool);
     in-out property <bool> enable_dgpu_notifications;
     callback set_enable_dgpu_notifications(bool);
+    in-out property <bool> enable_autostart;
+    callback set_enable_autostart(bool);
 }
 
 export component PageAppSettings inherits VerticalLayout {
@@ -48,6 +50,14 @@ export component PageAppSettings inherits VerticalLayout {
                 checked <=> AppSettingsPageData.enable_dgpu_notifications;
                 toggled => {
                     AppSettingsPageData.set_enable_dgpu_notifications(AppSettingsPageData.enable_dgpu_notifications)
+                }
+            }
+
+            SystemToggle {
+                text: @tr("Start app on system startup");
+                checked <=> AppSettingsPageData.enable_autostart;
+                toggled => {
+                    AppSettingsPageData.set_enable_autostart(AppSettingsPageData.enable_autostart)
                 }
             }
 
