@@ -78,11 +78,12 @@ pub fn setup_system_page(ui: &MainWindow, config: Arc<Mutex<Config>>) {
         }
     }
 
+    let backend = detect_display_backend();
     let handle_copy = ui.as_weak();
     ui.global::<SystemPageData>().on_cb_refresh_rate_changed(move |idx| {
-        if let Some((name, _, modes)) = get_kscreen_info() {
+        if let Some((name, _, modes)) = get_display_info(backend) {
             if let Some(mode) = modes.get(idx as usize) {
-                set_kscreen_mode(&name, &mode.0);
+                set_display_mode(backend, &name, &mode.0);
                 if let Some(handle) = handle_copy.upgrade() {
                     handle.global::<SystemPageData>().set_refresh_rate_active_idx(idx);
                 }
@@ -146,13 +147,13 @@ pub fn setup_system_page(ui: &MainWindow, config: Arc<Mutex<Config>>) {
             prev_ticks = curr_ticks;
 
             // Refresh rate auto-switching logic
-            let kscreen_info = get_kscreen_info();
+            let display_info = get_display_info(backend);
             let mut refresh_rate_choices_strings = Vec::new();
             let mut active_idx = -1;
             let mut output_name = String::new();
             let mut current_mode_id = String::new();
             let mut available_modes_store = Vec::new();
-            if let Some((name, curr_id, modes)) = kscreen_info {
+            if let Some((name, curr_id, modes)) = display_info {
                 output_name = name;
                 current_mode_id = curr_id;
                 available_modes_store = modes.clone();
@@ -180,7 +181,7 @@ pub fn setup_system_page(ui: &MainWindow, config: Arc<Mutex<Config>>) {
                         };
                         if let Some(mode) = target_mode {
                             if mode.0 != current_mode_id {
-                                set_kscreen_mode(&output_name, &mode.0);
+                                set_display_mode(backend, &output_name, &mode.0);
                                 current_mode_id = mode.0.clone();
                                 if let Some(pos) = available_modes_store.iter().position(|x| x.0 == mode.0) {
                                     active_idx = pos as i32;
@@ -1110,6 +1111,39 @@ fn get_gpu_usage_pct() -> f32 {
     0.0
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum WaylandDisplayBackend {
+    KScreenDoctor,
+    WlrRandr,
+    None,
+}
+
+fn detect_display_backend() -> WaylandDisplayBackend {
+    if std::process::Command::new("kscreen-doctor").arg("--help").output().is_ok() {
+        WaylandDisplayBackend::KScreenDoctor
+    } else if std::process::Command::new("wlr-randr").arg("--help").output().is_ok() {
+        WaylandDisplayBackend::WlrRandr
+    } else {
+        WaylandDisplayBackend::None
+    }
+}
+
+fn get_display_info(backend: WaylandDisplayBackend) -> Option<(String, String, Vec<(String, String, f64)>)> {
+    match backend {
+        WaylandDisplayBackend::KScreenDoctor => get_kscreen_info(),
+        WaylandDisplayBackend::WlrRandr => get_wlr_info(),
+        WaylandDisplayBackend::None => None,
+    }
+}
+
+fn set_display_mode(backend: WaylandDisplayBackend, output_name: &str, mode_id: &str) {
+    match backend {
+        WaylandDisplayBackend::KScreenDoctor => set_kscreen_mode(output_name, mode_id),
+        WaylandDisplayBackend::WlrRandr => set_wlr_mode(output_name, mode_id),
+        WaylandDisplayBackend::None => {}
+    }
+}
+
 #[derive(serde::Deserialize, Debug)]
 struct KScreenOutput {
     name: String,
@@ -1163,5 +1197,79 @@ fn set_kscreen_mode(output_name: &str, mode_id: &str) {
     let arg = format!("output.{}.mode.{}", output_name, mode_id);
     let _ = std::process::Command::new("kscreen-doctor")
         .arg(arg)
+        .output();
+}
+
+fn get_wlr_info() -> Option<(String, String, Vec<(String, String, f64)>)> {
+    let output = std::process::Command::new("wlr-randr")
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    
+    let mut current_output = String::new();
+    let mut is_edp = false;
+    let mut current_mode_str = String::new();
+    let mut modes = Vec::new();
+    
+    for line in stdout.lines() {
+        let trimmed = line.trim();
+        if line.starts_with(' ') || line.starts_with('\t') {
+            if is_edp {
+                if trimmed.starts_with("Modes:") {
+                    continue;
+                }
+                if trimmed.contains("px,") && trimmed.contains("Hz") {
+                    let parts: Vec<&str> = trimmed.split(',').collect();
+                    if parts.len() >= 2 {
+                        let res = parts[0].replace("px", "").trim().to_string();
+                        let hz_part = parts[1].trim();
+                        
+                        let is_current = hz_part.contains("(current)");
+                        let clean_hz_part = hz_part.replace("(current)", "").replace("(preferred)", "").replace("Hz", "");
+                        let hz_str = clean_hz_part.trim();
+                        if let Ok(hz) = hz_str.parse::<f64>() {
+                            let mode_id = format!("{}@{}", res, hz_str);
+                            let mode_name = format!("{} px, {} Hz", res, hz_str);
+                            if is_current {
+                                current_mode_str = mode_id.clone();
+                            }
+                            modes.push((mode_id, mode_name, hz));
+                        }
+                    }
+                }
+            }
+        } else {
+            let parts: Vec<&str> = trimmed.split_whitespace().collect();
+            if let Some(name) = parts.first() {
+                if name.starts_with("eDP") {
+                    current_output = name.to_string();
+                    is_edp = true;
+                } else {
+                    is_edp = false;
+                }
+            }
+        }
+    }
+    
+    if !current_output.is_empty() && !modes.is_empty() {
+        modes.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap_or(std::cmp::Ordering::Equal));
+        if current_mode_str.is_empty() {
+            current_mode_str = modes.first()?.0.clone();
+        }
+        Some((current_output, current_mode_str, modes))
+    } else {
+        None
+    }
+}
+
+fn set_wlr_mode(output_name: &str, mode_id: &str) {
+    let _ = std::process::Command::new("wlr-randr")
+        .arg("--output")
+        .arg(output_name)
+        .arg("--mode")
+        .arg(mode_id)
         .output();
 }
