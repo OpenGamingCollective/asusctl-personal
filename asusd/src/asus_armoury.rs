@@ -600,7 +600,7 @@ pub async fn start_attributes_zbus(
                 "Skipping attribute '{}' due to reload error: {e:?}",
                 attr.attr.name()
             );
-            break;
+            continue;
         }
 
         let attr_name = attr.attribute_name();
