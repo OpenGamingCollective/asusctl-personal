@@ -220,106 +220,281 @@ export component PageSystem inherits Rectangle {
                 }
             }
 
-            if SystemPageData.battery_health != -1: VerticalLayout {
-                spacing: 6px;
-                padding-top: 6px;
-                padding-bottom: 6px;
-                Rectangle {
-                    background: Palette.alternate-background;
-                    border-color: Palette.border;
-                    border-width: 1px;
-                    border-radius: 2px;
+            if SystemPageData.battery_health != -1: Rectangle {
+                background: Palette.alternate-background;
+                border-color: Palette.border;
+                border-width: 1px;
+                border-radius: 4px;
+                
+                VerticalLayout {
+                    padding: 12px;
+                    spacing: 8px;
                     
-                    VerticalLayout {
-                        padding: 10px;
+                    HorizontalLayout {
+                        alignment: LayoutAlignment.start;
                         spacing: 8px;
-                        
                         Text {
                             font-size: 14px;
                             font-weight: 700;
                             color: Palette.accent-background;
                             text: @tr("Battery Information");
                         }
-                        
-                        HorizontalLayout {
-                            alignment: LayoutAlignment.space-between;
-                            Text {
-                                text: @tr("Battery Health (Capacity):");
-                                color: Palette.control-foreground;
-                            }
-                            Text {
-                                text: SystemPageData.battery_health + "%";
-                                font-weight: 700;
-                                color: SystemPageData.battery_health > 80 ? #22c55e : (SystemPageData.battery_health > 50 ? #eab308 : #ef4444);
-                            }
+                    }
+                    
+                    HorizontalLayout {
+                        alignment: LayoutAlignment.space-between;
+                        Text {
+                            text: @tr("Battery Health (Capacity):");
+                            color: Palette.control-foreground;
                         }
-                        
-                        if SystemPageData.battery_cycle_count != -1: HorizontalLayout {
-                            alignment: LayoutAlignment.space-between;
-                            Text {
-                                text: @tr("Cycle Count:");
-                                color: Palette.control-foreground;
-                            }
-                            Text {
-                                text: SystemPageData.battery_cycle_count;
-                                font-weight: 700;
-                                color: Palette.control-foreground;
-                            }
+                        Text {
+                            text: SystemPageData.battery_health + "%";
+                            font-weight: 700;
+                            color: SystemPageData.battery_health > 80 ? #22c55e : (SystemPageData.battery_health > 50 ? #eab308 : #ef4444);
                         }
-                        
-                        HorizontalLayout {
-                            alignment: LayoutAlignment.space-between;
-                            Text {
-                                text: @tr("Status:");
-                                color: Palette.control-foreground;
-                            }
-                            Text {
-                                text: SystemPageData.battery_status;
-                                font-weight: 700;
-                                color: Palette.control-foreground;
-                            }
+                    }
+                    
+                    if SystemPageData.battery_cycle_count != -1: HorizontalLayout {
+                        alignment: LayoutAlignment.space-between;
+                        Text {
+                            text: @tr("Cycle Count:");
+                            color: Palette.control-foreground;
                         }
+                        Text {
+                            text: SystemPageData.battery_cycle_count;
+                            font-weight: 700;
+                            color: Palette.control-foreground;
+                        }
+                    }
+                    
+                    HorizontalLayout {
+                        alignment: LayoutAlignment.space-between;
+                        Text {
+                            text: @tr("Status:");
+                            color: Palette.control-foreground;
+                        }
+                        Text {
+                            text: SystemPageData.battery_status;
+                            font-weight: 700;
+                            color: Palette.control-foreground;
+                        }
+                    }
 
-                        if SystemPageData.battery_power_consumption != -1.0: HorizontalLayout {
-                            alignment: LayoutAlignment.space-between;
-                            Text {
-                                text: @tr("Power Draw:");
-                                color: Palette.control-foreground;
-                            }
-                            Text {
-                                text: Math.round(SystemPageData.battery_power_consumption * 10) / 10 + " W";
-                                font-weight: 700;
-                                color: SystemPageData.battery_status == "Discharging" ? #ef4444 : #22c55e;
-                            }
+                    if SystemPageData.battery_power_consumption != -1.0: HorizontalLayout {
+                        alignment: LayoutAlignment.space-between;
+                        Text {
+                            text: @tr("Power Draw:");
+                            color: Palette.control-foreground;
                         }
+                        Text {
+                            text: Math.round(SystemPageData.battery_power_consumption * 10) / 10 + " W";
+                            font-weight: 700;
+                            color: SystemPageData.battery_status == "Discharging" ? #ef4444 : #22c55e;
+                        }
+                    }
 
-                        if SystemPageData.battery_time_estimate != "": HorizontalLayout {
-                            alignment: LayoutAlignment.space-between;
-                            Text {
-                                text: SystemPageData.battery_status == "Charging" ? @tr("Time to Full:") : @tr("Time Remaining:");
-                                color: Palette.control-foreground;
-                            }
-                            Text {
-                                text: SystemPageData.battery_time_estimate;
-                                font-weight: 700;
-                                color: Palette.control-foreground;
-                            }
+                    if SystemPageData.battery_time_estimate != "": HorizontalLayout {
+                        alignment: LayoutAlignment.space-between;
+                        Text {
+                            text: SystemPageData.battery_status == "Charging" ? @tr("Time to Full:") : @tr("Time Remaining:");
+                            color: Palette.control-foreground;
+                        }
+                        Text {
+                            text: SystemPageData.battery_time_estimate;
+                            font-weight: 700;
+                            color: Palette.control-foreground;
                         }
                     }
                 }
             }
 
-            if SystemPageData.cpu_usage_val != -1.0: VerticalLayout {
-                spacing: 6px;
-                Text { text: "CPU Temp: " + Math.round(SystemPageData.cpu_temp_val) + " C"; color: Palette.control-foreground; }
-                Text { text: "GPU Temp: " + Math.round(SystemPageData.gpu_temp_val) + " C"; color: Palette.control-foreground; }
-                Text { text: "CPU Usage: " + Math.round(SystemPageData.cpu_usage_val) + "%"; color: Palette.control-foreground; }
-                Text { text: "GPU Usage: " + Math.round(SystemPageData.gpu_usage_val) + "%"; color: Palette.control-foreground; }
-                Text { text: "RAM Usage: " + Math.round(SystemPageData.ram_usage_val) + "%"; color: Palette.control-foreground; }
-                Text { text: "CPU Freq: " + Math.round(SystemPageData.cpu_freq_mhz) + " MHz"; color: Palette.control-foreground; }
-                Text { text: "CPU Fan: " + SystemPageData.cpu_fan_rpm + " RPM"; color: Palette.control-foreground; }
-                Text { text: "GPU Fan: " + SystemPageData.gpu_fan_rpm + " RPM"; color: Palette.control-foreground; }
-                Text { text: "Mid Fan: " + SystemPageData.mid_fan_rpm + " RPM"; color: Palette.control-foreground; }
+
+            if SystemPageData.cpu_usage_val != -1.0: Rectangle {
+                background: Palette.alternate-background;
+                border-color: Palette.border;
+                border-width: 1px;
+                border-radius: 4px;
+
+                VerticalLayout {
+                    padding: 12px;
+                    spacing: 12px;
+
+                    HorizontalLayout {
+                        alignment: LayoutAlignment.start;
+                        spacing: 8px;
+                        Text {
+                            font-size: 14px;
+                            font-weight: 700;
+                            color: Palette.accent-background;
+                            text: @tr("Hardware Monitor");
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 16px;
+                        
+                        // Left Column: CPU & Memory
+                        VerticalLayout {
+                            width: 50%;
+                            spacing: 8px;
+                            
+                            Text {
+                                text: @tr("CPU Status");
+                                font-weight: 700;
+                                color: Palette.control-foreground;
+                                font-size: 12px;
+                            }
+                            
+                            HorizontalLayout {
+                                alignment: LayoutAlignment.space-between;
+                                Text {
+                                    text: @tr("Temperature:");
+                                    color: Palette.control-foreground;
+                                }
+                                Text {
+                                    text: Math.round(SystemPageData.cpu_temp_val) + " °C";
+                                    font-weight: 700;
+                                    color: SystemPageData.cpu_temp_val > 80 ? #ef4444 : (SystemPageData.cpu_temp_val > 65 ? #eab308 : #22c55e);
+                                }
+                            }
+                            
+                            HorizontalLayout {
+                                alignment: LayoutAlignment.space-between;
+                                Text {
+                                    text: @tr("Usage:");
+                                    color: Palette.control-foreground;
+                                }
+                                Text {
+                                    text: Math.round(SystemPageData.cpu_usage_val) + "%";
+                                    font-weight: 700;
+                                    color: Palette.control-foreground;
+                                }
+                            }
+                            
+                            HorizontalLayout {
+                                alignment: LayoutAlignment.space-between;
+                                Text {
+                                    text: @tr("Frequency:");
+                                    color: Palette.control-foreground;
+                                }
+                                Text {
+                                    text: Math.round(SystemPageData.cpu_freq_mhz) + " MHz";
+                                    font-weight: 700;
+                                    color: Palette.control-foreground;
+                                }
+                            }
+
+                            Rectangle { height: 4px; } // divider spacer
+
+                            Text {
+                                text: @tr("Memory Status");
+                                font-weight: 700;
+                                color: Palette.control-foreground;
+                                font-size: 12px;
+                            }
+                            
+                            HorizontalLayout {
+                                alignment: LayoutAlignment.space-between;
+                                Text {
+                                    text: @tr("RAM Usage:");
+                                    color: Palette.control-foreground;
+                                }
+                                Text {
+                                    text: Math.round(SystemPageData.ram_usage_val) + "%";
+                                    font-weight: 700;
+                                    color: Palette.control-foreground;
+                                }
+                            }
+                        }
+
+                        // Right Column: GPU & Fans
+                        VerticalLayout {
+                            width: 50%;
+                            spacing: 8px;
+                            
+                            Text {
+                                text: @tr("GPU Status");
+                                font-weight: 700;
+                                color: Palette.control-foreground;
+                                font-size: 12px;
+                            }
+                            
+                            HorizontalLayout {
+                                alignment: LayoutAlignment.space-between;
+                                Text {
+                                    text: @tr("Temperature:");
+                                    color: Palette.control-foreground;
+                                }
+                                Text {
+                                    text: SystemPageData.gpu_temp_val > 0.0 ? (Math.round(SystemPageData.gpu_temp_val) + " °C") : @tr("N/A");
+                                    font-weight: 700;
+                                    color: SystemPageData.gpu_temp_val > 80 ? #ef4444 : (SystemPageData.gpu_temp_val > 65 ? #eab308 : (SystemPageData.gpu_temp_val > 0.0 ? #22c55e : Palette.control-foreground));
+                                }
+                            }
+                            
+                            HorizontalLayout {
+                                alignment: LayoutAlignment.space-between;
+                                Text {
+                                    text: @tr("Usage:");
+                                    color: Palette.control-foreground;
+                                }
+                                Text {
+                                    text: SystemPageData.gpu_usage_val >= 0.0 ? (Math.round(SystemPageData.gpu_usage_val) + "%") : @tr("N/A");
+                                    font-weight: 700;
+                                    color: Palette.control-foreground;
+                                }
+                            }
+
+                            Rectangle { height: 4px; } // divider spacer
+
+                            Text {
+                                text: @tr("Fan Speeds");
+                                font-weight: 700;
+                                color: Palette.control-foreground;
+                                font-size: 12px;
+                            }
+                            
+                            HorizontalLayout {
+                                alignment: LayoutAlignment.space-between;
+                                Text {
+                                    text: @tr("CPU Fan:");
+                                    color: Palette.control-foreground;
+                                }
+                                Text {
+                                    text: SystemPageData.cpu_fan_rpm + " RPM";
+                                    font-weight: 700;
+                                    color: Palette.control-foreground;
+                                }
+                            }
+                            
+                            HorizontalLayout {
+                                alignment: LayoutAlignment.space-between;
+                                Text {
+                                    text: @tr("GPU Fan:");
+                                    color: Palette.control-foreground;
+                                }
+                                Text {
+                                    text: SystemPageData.gpu_fan_rpm + " RPM";
+                                    font-weight: 700;
+                                    color: Palette.control-foreground;
+                                }
+                            }
+
+                            if SystemPageData.mid_fan_rpm > 0: HorizontalLayout {
+                                alignment: LayoutAlignment.space-between;
+                                Text {
+                                    text: @tr("Mid Fan:");
+                                    color: Palette.control-foreground;
+                                }
+                                Text {
+                                    text: SystemPageData.mid_fan_rpm + " RPM";
+                                    font-weight: 700;
+                                    color: Palette.control-foreground;
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             if SystemPageData.platform_profile != -1: HorizontalLayout {
