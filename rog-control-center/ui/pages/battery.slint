@@ -1,0 +1,119 @@
+import { SystemSlider, RogItem } from "../widgets/common.slint";
+import { Palette, VerticalBox, ScrollView } from "std-widgets.slint";
+import { SystemPageData } from "system.slint";
+
+export component PageBattery inherits Rectangle {
+    clip: true;
+
+    ScrollView {
+        VerticalLayout {
+            padding: 12px;
+            spacing: 8px;
+            alignment: LayoutAlignment.start;
+
+            Rectangle {
+                background: Palette.alternate-background;
+                border-color: Palette.border;
+                border-width: 1px;
+                border-radius: 2px;
+                height: 36px;
+                Text {
+                    font-size: 16px;
+                    color: Palette.control-foreground;
+                    horizontal-alignment: TextHorizontalAlignment.center;
+                    text: @tr("Battery Information");
+                }
+            }
+
+            if SystemPageData.charge_control_end_threshold != -1: SystemSlider {
+                text: @tr("Charge limit");
+                minimum: 20;
+                maximum: 100;
+                has_reset: false;
+                enabled <=> SystemPageData.charge_control_enabled;
+                value: SystemPageData.charge_control_end_threshold;
+                released => {
+                    SystemPageData.charge_control_end_threshold = self.value;
+                    SystemPageData.cb_charge_control_end_threshold(Math.round(SystemPageData.charge_control_end_threshold))
+                }
+            }
+
+            if SystemPageData.battery_health != -1: Rectangle {
+                background: Palette.alternate-background;
+                border-color: Palette.border;
+                border-width: 1px;
+                border-radius: 4px;
+                
+                VerticalLayout {
+                    padding: 12px;
+                    spacing: 8px;
+                    
+                    HorizontalLayout {
+                        alignment: LayoutAlignment.space-between;
+                        Text {
+                            text: @tr("Battery Health (Capacity):");
+                            color: Palette.control-foreground;
+                        }
+                        Text {
+                            text: SystemPageData.battery_health + "%";
+                            font-weight: 700;
+                            color: SystemPageData.battery_health > 80 ? #22c55e : (SystemPageData.battery_health > 50 ? #eab308 : #ef4444);
+                        }
+                    }
+                    
+                    if SystemPageData.battery_cycle_count != -1: HorizontalLayout {
+                        alignment: LayoutAlignment.space-between;
+                        Text {
+                            text: @tr("Cycle Count:");
+                            color: Palette.control-foreground;
+                        }
+                        Text {
+                            text: SystemPageData.battery_cycle_count;
+                            font-weight: 700;
+                            color: Palette.control-foreground;
+                        }
+                    }
+                    
+                    HorizontalLayout {
+                        alignment: LayoutAlignment.space-between;
+                        Text {
+                            text: @tr("Status:");
+                            color: Palette.control-foreground;
+                        }
+                        Text {
+                            text: SystemPageData.battery_status;
+                            font-weight: 700;
+                            color: Palette.control-foreground;
+                        }
+                    }
+
+                    if SystemPageData.battery_power_consumption != -1.0: HorizontalLayout {
+                        alignment: LayoutAlignment.space-between;
+                        Text {
+                            text: @tr("Power Draw:");
+                            color: Palette.control-foreground;
+                        }
+                        Text {
+                            text: Math.round(SystemPageData.battery_power_consumption * 10) / 10 + " W";
+                            font-weight: 700;
+                            color: SystemPageData.battery_status == "Discharging" ? #ef4444 : #22c55e;
+                        }
+                    }
+
+                    if SystemPageData.battery_time_estimate != "": HorizontalLayout {
+                        alignment: LayoutAlignment.space-between;
+                        Text {
+                            text: SystemPageData.battery_status == "Charging" ? @tr("Time to Full:") : @tr("Time Remaining:");
+                            color: Palette.control-foreground;
+                        }
+                        Text {
+                            text: SystemPageData.battery_time_estimate;
+                            font-weight: 700;
+                            color: Palette.control-foreground;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

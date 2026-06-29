@@ -152,6 +152,24 @@ export global SystemPageData {
     in-out property <bool> ppt_enabled_available;
     in-out property <bool> ppt_enabled;
     callback cb_ppt_enabled(bool);
+    in-out property <int> battery_health: -1;
+    in-out property <int> battery_cycle_count: -1;
+    in-out property <float> battery_power_consumption: -1.0;
+    in-out property <string> battery_status: "Unknown";
+    in-out property <string> battery_time_estimate: "";
+    in-out property <float> cpu_temp_val: -1.0;
+    in-out property <float> gpu_temp_val: -1.0;
+    in-out property <float> cpu_usage_val: -1.0;
+    in-out property <float> gpu_usage_val: -1.0;
+    in-out property <float> ram_usage_val: -1.0;
+    in-out property <float> cpu_freq_mhz: -1.0;
+    in-out property <int> cpu_fan_rpm: -1;
+    in-out property <int> gpu_fan_rpm: -1;
+    in-out property <int> mid_fan_rpm: -1;
+    in-out property <string> refresh_rate_current: "";
+    in-out property <[string]> refresh_rate_choices: [];
+    in-out property <int> refresh_rate_active_idx: -1;
+    callback cb_refresh_rate_changed(int);
 }
 
 export component PageSystem inherits Rectangle {
@@ -193,16 +211,235 @@ export component PageSystem inherits Rectangle {
                 }
             }
 
-            if SystemPageData.charge_control_end_threshold != -1: SystemSlider {
-                text: @tr("Charge limit");
-                minimum: 20;
-                maximum: 100;
-                has_reset: false;
-                enabled <=> SystemPageData.charge_control_enabled;
-                value: SystemPageData.charge_control_end_threshold;
-                released => {
-                    SystemPageData.charge_control_end_threshold = self.value;
-                    SystemPageData.cb_charge_control_end_threshold(Math.round(SystemPageData.charge_control_end_threshold))
+            if SystemPageData.refresh_rate_active_idx != -1: Rectangle {
+                background: Palette.alternate-background;
+                border-color: Palette.border;
+                border-width: 1px;
+                border-radius: 4px;
+                
+                VerticalLayout {
+                    padding: 12px;
+                    spacing: 8px;
+                    
+                    HorizontalLayout {
+                        alignment: LayoutAlignment.start;
+                        spacing: 8px;
+                        Text {
+                            font-size: 14px;
+                            font-weight: 700;
+                            color: Palette.accent-background;
+                            text: @tr("Display Settings");
+                        }
+                    }
+
+                    HorizontalLayout {
+                        alignment: LayoutAlignment.space-between;
+                        spacing: 12px;
+                        
+                        Text {
+                            text: @tr("Refresh Rate:");
+                            color: Palette.control-foreground;
+                            vertical-alignment: TextVerticalAlignment.center;
+                        }
+
+                        SystemDropdown {
+                            combo_min_width: 150px;
+                            current_index <=> SystemPageData.refresh_rate_active_idx;
+                            current_value: SystemPageData.refresh_rate_choices[SystemPageData.refresh_rate_active_idx];
+                            model <=> SystemPageData.refresh_rate_choices;
+                            selected => {
+                                SystemPageData.cb_refresh_rate_changed(SystemPageData.refresh_rate_active_idx)
+                            }
+                        }
+                    }
+                }
+            }
+
+            if SystemPageData.cpu_usage_val != -1.0: Rectangle {
+                background: Palette.alternate-background;
+                border-color: Palette.border;
+                border-width: 1px;
+                border-radius: 4px;
+
+                VerticalLayout {
+                    padding: 12px;
+                    spacing: 12px;
+
+                    HorizontalLayout {
+                        alignment: LayoutAlignment.start;
+                        spacing: 8px;
+                        Text {
+                            font-size: 14px;
+                            font-weight: 700;
+                            color: Palette.accent-background;
+                            text: @tr("Hardware Monitor");
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 16px;
+                        
+                        // Left Column: CPU & Memory
+                        VerticalLayout {
+                            width: 50%;
+                            spacing: 8px;
+                            
+                            Text {
+                                text: @tr("CPU Status");
+                                font-weight: 700;
+                                color: Palette.control-foreground;
+                                font-size: 12px;
+                            }
+                            
+                            HorizontalLayout {
+                                alignment: LayoutAlignment.space-between;
+                                Text {
+                                    text: @tr("Temperature:");
+                                    color: Palette.control-foreground;
+                                }
+                                Text {
+                                    text: Math.round(SystemPageData.cpu_temp_val) + " °C";
+                                    font-weight: 700;
+                                    color: SystemPageData.cpu_temp_val > 80 ? #ef4444 : (SystemPageData.cpu_temp_val > 65 ? #eab308 : #22c55e);
+                                }
+                            }
+                            
+                            HorizontalLayout {
+                                alignment: LayoutAlignment.space-between;
+                                Text {
+                                    text: @tr("Usage:");
+                                    color: Palette.control-foreground;
+                                }
+                                Text {
+                                    text: Math.round(SystemPageData.cpu_usage_val) + "%";
+                                    font-weight: 700;
+                                    color: Palette.control-foreground;
+                                }
+                            }
+                            
+                            HorizontalLayout {
+                                alignment: LayoutAlignment.space-between;
+                                Text {
+                                    text: @tr("Frequency:");
+                                    color: Palette.control-foreground;
+                                }
+                                Text {
+                                    text: Math.round(SystemPageData.cpu_freq_mhz) + " MHz";
+                                    font-weight: 700;
+                                    color: Palette.control-foreground;
+                                }
+                            }
+
+                            Rectangle { height: 4px; } // divider spacer
+
+                            Text {
+                                text: @tr("Memory Status");
+                                font-weight: 700;
+                                color: Palette.control-foreground;
+                                font-size: 12px;
+                            }
+                            
+                            HorizontalLayout {
+                                alignment: LayoutAlignment.space-between;
+                                Text {
+                                    text: @tr("RAM Usage:");
+                                    color: Palette.control-foreground;
+                                }
+                                Text {
+                                    text: Math.round(SystemPageData.ram_usage_val) + "%";
+                                    font-weight: 700;
+                                    color: Palette.control-foreground;
+                                }
+                            }
+                        }
+
+                        // Right Column: GPU & Fans
+                        VerticalLayout {
+                            width: 50%;
+                            spacing: 8px;
+                            
+                            Text {
+                                text: @tr("GPU Status");
+                                font-weight: 700;
+                                color: Palette.control-foreground;
+                                font-size: 12px;
+                            }
+                            
+                            HorizontalLayout {
+                                alignment: LayoutAlignment.space-between;
+                                Text {
+                                    text: @tr("Temperature:");
+                                    color: Palette.control-foreground;
+                                }
+                                Text {
+                                    text: SystemPageData.gpu_temp_val > 0.0 ? (Math.round(SystemPageData.gpu_temp_val) + " °C") : @tr("N/A");
+                                    font-weight: 700;
+                                    color: SystemPageData.gpu_temp_val > 80 ? #ef4444 : (SystemPageData.gpu_temp_val > 65 ? #eab308 : (SystemPageData.gpu_temp_val > 0.0 ? #22c55e : Palette.control-foreground));
+                                }
+                            }
+                            
+                            HorizontalLayout {
+                                alignment: LayoutAlignment.space-between;
+                                Text {
+                                    text: @tr("Usage:");
+                                    color: Palette.control-foreground;
+                                }
+                                Text {
+                                    text: SystemPageData.gpu_usage_val >= 0.0 ? (Math.round(SystemPageData.gpu_usage_val) + "%") : @tr("N/A");
+                                    font-weight: 700;
+                                    color: Palette.control-foreground;
+                                }
+                            }
+
+                            Rectangle { height: 4px; } // divider spacer
+
+                            Text {
+                                text: @tr("Fan Speeds");
+                                font-weight: 700;
+                                color: Palette.control-foreground;
+                                font-size: 12px;
+                            }
+                            
+                            HorizontalLayout {
+                                alignment: LayoutAlignment.space-between;
+                                Text {
+                                    text: @tr("CPU Fan:");
+                                    color: Palette.control-foreground;
+                                }
+                                Text {
+                                    text: SystemPageData.cpu_fan_rpm + " RPM";
+                                    font-weight: 700;
+                                    color: Palette.control-foreground;
+                                }
+                            }
+                            
+                            HorizontalLayout {
+                                alignment: LayoutAlignment.space-between;
+                                Text {
+                                    text: @tr("GPU Fan:");
+                                    color: Palette.control-foreground;
+                                }
+                                Text {
+                                    text: SystemPageData.gpu_fan_rpm + " RPM";
+                                    font-weight: 700;
+                                    color: Palette.control-foreground;
+                                }
+                            }
+
+                            if SystemPageData.mid_fan_rpm > 0: HorizontalLayout {
+                                alignment: LayoutAlignment.space-between;
+                                Text {
+                                    text: @tr("Mid Fan:");
+                                    color: Palette.control-foreground;
+                                }
+                                Text {
+                                    text: SystemPageData.mid_fan_rpm + " RPM";
+                                    font-weight: 700;
+                                    color: Palette.control-foreground;
+                                }
+                            }
+                        }
+                    }
                 }
             }
 

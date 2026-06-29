@@ -9,6 +9,7 @@ import { PageSlash, SlashPageData } from "pages/slash.slint";
 import { RogItem } from "widgets/common.slint";
 import { PageAura } from "pages/aura.slint";
 import { PageGPU, GPUPageData } from "pages/gpu.slint";
+import { PageBattery } from "pages/battery.slint";
 import { Node } from "widgets/graph.slint";
 export { Node }
 import { FanPageData, FanType, Profile } from "types/fan_types.slint";
@@ -33,6 +34,7 @@ export component MainWindow inherits Window {
         true,
         true,
         true, // GPU Configuration
+        true, // Battery Info
         true, // App Settings
         true, // About
     ];
@@ -81,6 +83,7 @@ export component MainWindow inherits Window {
                     @tr("Menu4" => "Slash Lighting"),
                     @tr("Menu5" => "Fan Curves"),
                     @tr("Menu6" => "GPU Configuration"),
+                    @tr("Menu9" => "Battery Info"),
                     @tr("Menu7" => "App Settings"),
                     @tr("Menu8" => "About"),
                 ];
@@ -135,16 +138,22 @@ export component MainWindow inherits Window {
                 visible: side-bar.current-item == 5;
             }
 
-            if(side-bar.current-item == 6): PageAppSettings {
+            if(side-bar.current-item == 6): PageBattery {
                 width: root.width - side-bar.width;
                 height: root.height + 12px;
                 visible: side-bar.current-item == 6;
             }
 
-            if(side-bar.current-item == 7): PageAbout {
+            if(side-bar.current-item == 7): PageAppSettings {
                 width: root.width - side-bar.width;
                 height: root.height + 12px;
                 visible: side-bar.current-item == 7;
+            }
+
+            if(side-bar.current-item == 8): PageAbout {
+                width: root.width - side-bar.width;
+                height: root.height + 12px;
+                visible: side-bar.current-item == 8;
             }
 
             if toast: Rectangle {

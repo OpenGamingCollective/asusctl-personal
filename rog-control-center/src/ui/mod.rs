@@ -147,6 +147,7 @@ pub fn setup_window(
             available.contains(&"xyz.ljones.Slash".to_string()),
             available.contains(&"xyz.ljones.FanCurves".to_string()),
             true, // GPU Configuration
+            available.contains(&"xyz.ljones.Platform".to_string()), // Battery Info
             true, // App Settings
             true, // About
         ]
@@ -211,11 +212,19 @@ pub fn setup_app_settings_page(ui: &MainWindow, config: Arc<Mutex<Config>>) {
             lock.write();
         }
     });
+    let config_copy = config.clone();
+    global.on_set_auto_refresh_rate(move |enable| {
+        if let Ok(mut lock) = config_copy.try_lock() {
+            lock.auto_refresh_rate = enable;
+            lock.write();
+        }
+    });
 
     if let Ok(lock) = config.try_lock() {
         global.set_run_in_background(lock.run_in_background);
         global.set_startup_in_background(lock.startup_in_background);
         global.set_enable_tray_icon(lock.enable_tray_icon);
         global.set_enable_dgpu_notifications(lock.notifications.enabled);
+        global.set_auto_refresh_rate(lock.auto_refresh_rate);
     }
 }
