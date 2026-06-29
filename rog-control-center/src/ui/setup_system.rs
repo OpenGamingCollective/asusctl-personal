@@ -43,6 +43,8 @@ pub fn setup_system_page(ui: &MainWindow, _config: Arc<Mutex<Config>>) {
         .set_battery_power_consumption(-1.0);
     ui.global::<SystemPageData>()
         .set_battery_status("Unknown".into());
+    ui.global::<SystemPageData>()
+        .set_battery_time_estimate("".into());
     ui.global::<SystemPageData>().set_platform_profile(-1);
     ui.global::<SystemPageData>().set_panel_overdrive(-1);
     ui.global::<SystemPageData>().set_boot_sound(-1);
@@ -80,21 +82,32 @@ pub fn setup_system_page(ui: &MainWindow, _config: Arc<Mutex<Config>>) {
     tokio::spawn(async move {
         loop {
             let power = rog_platform::power::AsusPower::new().ok();
-            let (has_bat, health, cycles, consumption, status) = if let Some(ref p) = power {
-                if p.has_battery() {
-                    let health = p.get_battery_health().unwrap_or(0) as i32;
-                    let cycles = p.get_battery_cycle_count().unwrap_or(-1);
-                    let consumption = p.get_battery_power_consumption().unwrap_or(-1.0);
-                    let status = p
-                        .get_battery_status()
-                        .unwrap_or_else(|_| "Unknown".to_string());
-                    (true, health, cycles, consumption, status)
+            let (has_bat, health, cycles, consumption, status, estimate_str) =
+                if let Some(ref p) = power {
+                    if p.has_battery() {
+                        let health = p.get_battery_health().unwrap_or(0) as i32;
+                        let cycles = p.get_battery_cycle_count().unwrap_or(-1);
+                        let consumption = p.get_battery_power_consumption().unwrap_or(-1.0);
+                        let status = p
+                            .get_battery_status()
+                            .unwrap_or_else(|_| "Unknown".to_string());
+                        let estimate = p.get_battery_time_estimate().ok().flatten();
+                        let est_str = if let Some((_, h, m)) = estimate {
+                            if h > 0 {
+                                format!("{}h {}m", h, m)
+                            } else {
+                                format!("{}m", m)
+                            }
+                        } else {
+                            "".to_string()
+                        };
+                        (true, health, cycles, consumption, status, est_str)
+                    } else {
+                        (false, -1, -1, -1.0, "Unknown".to_string(), "".to_string())
+                    }
                 } else {
-                    (false, -1, -1, -1.0, "Unknown".to_string())
-                }
-            } else {
-                (false, -1, -1, -1.0, "Unknown".to_string())
-            };
+                    (false, -1, -1, -1.0, "Unknown".to_string(), "".to_string())
+                };
 
             let success = handle.upgrade_in_event_loop(move |ui| {
                 let data = ui.global::<SystemPageData>();
@@ -103,6 +116,7 @@ pub fn setup_system_page(ui: &MainWindow, _config: Arc<Mutex<Config>>) {
                     data.set_battery_cycle_count(cycles);
                     data.set_battery_power_consumption(consumption);
                     data.set_battery_status(status.into());
+                    data.set_battery_time_estimate(estimate_str.into());
                 } else {
                     data.set_battery_health(-1);
                 }
