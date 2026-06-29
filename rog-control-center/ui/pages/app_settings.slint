@@ -10,6 +10,8 @@ export global AppSettingsPageData {
     callback set_enable_tray_icon(bool);
     in-out property <bool> enable_dgpu_notifications;
     callback set_enable_dgpu_notifications(bool);
+    in-out property <bool> auto_refresh_rate;
+    callback set_auto_refresh_rate(bool);
 }
 
 export component PageAppSettings inherits VerticalLayout {
@@ -51,6 +53,13 @@ export component PageAppSettings inherits VerticalLayout {
                 }
             }
 
+            SystemToggle {
+                text: @tr("Auto-switch refresh rate on battery");
+                checked <=> AppSettingsPageData.auto_refresh_rate;
+                toggled => {
+                    AppSettingsPageData.set_auto_refresh_rate(AppSettingsPageData.auto_refresh_rate)
+                }
+            }
             Text {
                 color: Palette.accent-background;
                 text: " WIP: some features like notifications are not complete";
