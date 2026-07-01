@@ -53,6 +53,72 @@ pub struct Attribute {
     base_path: PathBuf,
 }
 
+fn is_intel_cpu() -> bool {
+    std::fs::read_to_string("/proc/cpuinfo")
+        .map(|content| content.contains("GenuineIntel"))
+        .unwrap_or(false)
+}
+
+fn write_intel_rapl_limit(constraint_idx: u32, watts: i32) {
+    let microwatts = (watts as u64) * 1_000_000;
+    let microwatts_str = microwatts.to_string();
+
+    fn walk_dir(dir: &Path, constraint_idx: u32, val_str: &str) {
+        if let Ok(entries) = read_dir(dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    walk_dir(&path, constraint_idx, val_str);
+                } else if path.is_file() {
+                    if let Some(file_name) = path.file_name() {
+                        let expected_name = format!("constraint_{}_power_limit_uw", constraint_idx);
+                        if file_name == expected_name.as_str() {
+                            let path_str = path.to_string_lossy();
+                            if path_str.contains("intel-rapl") {
+                                debug!("Writing {} to {}", val_str, path_str);
+                                if let Ok(mut file) = OpenOptions::new().write(true).open(&path) {
+                                    let _ = file.write_all(val_str.as_bytes());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    walk_dir(
+        Path::new("/sys/class/powercap"),
+        constraint_idx,
+        &microwatts_str,
+    );
+}
+
+fn sync_all_intel_rapl_limits() {
+    if !is_intel_cpu() {
+        return;
+    }
+
+    let base_dir = Path::new("/sys/class/firmware-attributes/asus-armoury/attributes");
+
+    let limits = [
+        ("ppt_pl1_spl", 0),
+        ("ppt_pl2_sppt", 1),
+        ("ppt_pl3_fppt", 2),
+    ];
+
+    for (attr_name, constraint_idx) in &limits {
+        let current_value_path = base_dir.join(attr_name).join("current_value");
+        if current_value_path.exists() {
+            if let Ok(val_str) = std::fs::read_to_string(&current_value_path) {
+                if let Ok(watts) = val_str.trim().parse::<i32>() {
+                    write_intel_rapl_limit(*constraint_idx, watts);
+                }
+            }
+        }
+    }
+}
+
 impl Attribute {
     pub fn name(&self) -> &str {
         &self.name
@@ -97,6 +163,12 @@ impl Attribute {
 
         let mut file = OpenOptions::new().write(true).open(&path)?;
         file.write_all(value_str.as_bytes())?;
+
+        if self.name == "ppt_pl1_spl" || self.name == "ppt_pl2_sppt" || self.name == "ppt_pl3_fppt"
+        {
+            sync_all_intel_rapl_limits();
+        }
+
         Ok(())
     }
 
