@@ -4757,6 +4757,7 @@ version = "6.3.8"
 dependencies = [
  "concat-idents",
  "inotify",
+ "libc",
  "log",
  "rusb",
  "serde",

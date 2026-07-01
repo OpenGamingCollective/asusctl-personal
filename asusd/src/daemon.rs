@@ -150,10 +150,6 @@ async fn start_daemon() -> Result<(), Box<dyn Error>> {
         }
     }
 
-    let _ = DeviceManager::new(server.clone()).await?;
-
-    info!("DeviceManager initialized");
-
     // XG Mobile LED (non-fatal if not attached)
     match CtrlXgmLed::try_new(config.clone()) {
         Ok(Some(ctrl)) => {
@@ -179,10 +175,29 @@ async fn start_daemon() -> Result<(), Box<dyn Error>> {
         info!("CtrlGpu: initialized");
     }
 
-    // Request dbus name after finishing initalizing all functions
+    // Request the well-known dbus name BEFORE we go enumerate hidraw nodes.
+    // systemd's `Type=dbus` ready signal is the appearance of this name on
+    // the bus; if we delay it behind device probing (which on FA608WV
+    // includes a LampArray HID conversation that can stall on a kernel
+    // hidraw read), systemd kills us with a TimeoutSec=10 timeout and the
+    // service ends up reported as ServiceUnknown / "not activatable".
+    // We can still register additional zbus objects after request_name; the
+    // object server accepts new paths at any time.
     server.request_name(DBUS_NAME).await?;
 
-    info!("Startup success on dbus name {DBUS_NAME}: begining dbus server loop");
+    info!("Startup ready on dbus name {DBUS_NAME}: hidraw enumeration runs in background");
+
+    // Now do the hidraw enumeration. The well-known name is already on the
+    // bus so systemd considers us ready, and if a device probe stalls it
+    // cannot trigger the systemd start timeout. (We can't easily push this
+    // off into a `tokio::spawn` because `udev::Enumerator` and friends are
+    // not `Send`.)
+    match DeviceManager::new(server.clone()).await {
+        Ok(_) => info!("DeviceManager initialized"),
+        Err(e) => error!("DeviceManager init failed: {e:?}"),
+    }
+
+    info!("Entering dbus server loop");
     loop {
         // This is just a blocker to idle and ensure the reator reacts
         server.executor().tick().await;

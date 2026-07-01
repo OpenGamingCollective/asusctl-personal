@@ -16,6 +16,7 @@ use tokio::sync::Mutex;
 
 use crate::aura_anime::config::AniMeConfig;
 use crate::aura_anime::AniMe;
+use crate::aura_lamparray::LampArray;
 use crate::aura_laptop::config::AuraConfig;
 use crate::aura_laptop::Aura;
 use crate::aura_scsi::config::ScsiConfig;
@@ -23,6 +24,15 @@ use crate::aura_scsi::ScsiAura;
 use crate::aura_slash::config::SlashConfig;
 use crate::aura_slash::Slash;
 use crate::error::RogError;
+
+/// info! only in debug builds — release stays quiet.
+macro_rules! debug_info {
+    ($($arg:tt)*) => {{
+        if cfg!(debug_assertions) {
+            log::info!($($arg)*);
+        }
+    }};
+}
 
 pub enum _DeviceHandle {
     /// The AniMe devices require USBRaw as they are not HID devices
@@ -37,6 +47,7 @@ pub enum _DeviceHandle {
 #[derive(Clone)]
 pub enum DeviceHandle {
     Aura(Aura),
+    LampArray(LampArray),
     Slash(Slash),
     /// The AniMe devices require USBRaw as they are not HID devices
     AniMe(AniMe),
@@ -69,7 +80,6 @@ impl DeviceHandle {
             return Err(RogError::NotFound("No slash device".to_string()));
         }
         info!("Found slash type {slash_type:?}: {prod_id}");
-
         let mut config = SlashConfig::new().load();
         config.slash_type = slash_type;
         let slash = Slash::new(Some(device), None, Arc::new(Mutex::new(config)));
@@ -84,10 +94,8 @@ impl DeviceHandle {
         if matches!(slash_type, SlashType::Unsupported) {
             return Err(RogError::Slash(SlashError::NoDevice));
         }
-
         if let Ok(usb) = USBRaw::new(slash_type.prod_id()) {
             info!("Found Slash USB {slash_type:?}");
-
             let mut config = SlashConfig::new().load();
             config.slash_type = slash_type;
             let slash = Slash::new(
@@ -107,25 +115,9 @@ impl DeviceHandle {
         _device: Arc<Mutex<HidRaw>>,
         _prod_id: &str,
     ) -> Result<Self, RogError> {
-        // TODO: can't use HIDRAW for anime at the moment
         Err(RogError::NotFound(
             "Can't use anime over hidraw yet. Skip.".to_string(),
         ))
-
-        // debug!("Testing for HIDRAW AniMe");
-        // let anime_type = AnimeType::from_dmi();
-        // dbg!(prod_id);
-        // if matches!(anime_type, AnimeType::Unsupported) || prod_id != "193b"
-        // {     log::info!("Unknown or invalid AniMe: {prod_id:?},
-        // skipping");     return Err(RogError::NotFound("No
-        // anime-matrix device".to_string())); }
-        // info!("Found AniMe Matrix HIDRAW {anime_type:?}: {prod_id}");
-
-        // let mut config = AniMeConfig::new().load();
-        // config.anime_type = anime_type;
-        // let mut anime = AniMe::new(Some(device), None,
-        // Arc::new(Mutex::new(config))); anime.do_initialization().
-        // await?; Ok(Self::AniMe(anime))
     }
 
     pub async fn maybe_anime_usb() -> Result<Self, RogError> {
@@ -135,10 +127,8 @@ impl DeviceHandle {
             info!("No Anime Matrix capable laptop found");
             return Err(RogError::Anime(AnimeError::NoDevice));
         }
-
         if let Ok(usb) = USBRaw::new(0x193b) {
             info!("Found AniMe Matrix USB {anime_type:?}");
-
             let mut config = AniMeConfig::new().load();
             config.anime_type = anime_type;
             let mut anime = AniMe::new(
@@ -163,7 +153,6 @@ impl DeviceHandle {
             return Err(RogError::NotFound("No SCSI device".to_string()));
         }
         info!("Found SCSI device {prod_id:?} on {dev_node}");
-
         let mut config = ScsiConfig::new().load();
         config.dev_type = AuraDeviceType::ScsiExtDisk;
         let dev = Arc::new(Mutex::new(open_device(dev_node)?));
@@ -189,14 +178,12 @@ impl DeviceHandle {
             return Err(RogError::NotFound("No laptop aura device".to_string()));
         }
         info!("Found laptop aura type {prod_id:?}");
-
         let backlight = KeyboardBacklight::new()
             .map_err(|e| error!("Keyboard backlight error: {e:?}"))
             .map_or(None, |k| {
                 info!("Found sysfs backlight control");
                 Some(Arc::new(Mutex::new(k)))
             });
-
         // Load saved mode, colours, brightness, power from disk; apply on reload
         let mut config = AuraConfig::load_and_update_config(prod_id);
         config.led_type = aura_type;
@@ -207,5 +194,53 @@ impl DeviceHandle {
         };
         aura.do_initialization().await?;
         Ok(Self::Aura(aura))
+    }
+
+    /// Try the HID LampArray (Microsoft HID LampArray usage page) path used by
+    /// I2C-HID controllers on newer ASUS TUF laptops (e.g. FA608WV / ITE5570).
+    /// We open the hidraw R/W, run HIDIOCGRAWINFO and only proceed if the
+    /// device declares ASUS VID 0x0b05 and a whitelisted LampArray PID.
+    pub async fn maybe_lamparray(
+        device: Arc<Mutex<HidRaw>>,
+        prod_id: &str,
+    ) -> Result<Self, RogError> {
+        let dev_path = {
+            let g = device.lock().await;
+            g.devfs_path().clone()
+        };
+        debug_info!("LampArray init: device {dev_path:?} prod_id={prod_id:?}");
+        debug_info!("LampArray init: about to call raw_info on {dev_path:?}");
+        let info_res = {
+            let g = device.lock().await;
+            g.raw_info()
+        };
+        let info = match info_res {
+            Ok(i) => i,
+            Err(e) => {
+                error!("LampArray init: raw_info FAILED on {dev_path:?}: {e:?}");
+                return Err(RogError::Platform(e));
+            }
+        };
+        let vid = (info.vendor as u16) as u32;
+        let pid = (info.product as u16) as u32;
+        debug_info!(
+            "LampArray init: HIDIOCGRAWINFO {dev_path:?} VID:{vid:04x} PID:{pid:04x}"
+        );
+        if vid != 0x0b05 {
+            return Err(RogError::NotFound(format!("Not ASUS: {vid:04x}")));
+        }
+        if !matches!(pid, 0x19b6) {
+            return Err(RogError::NotFound(format!(
+                "PID {pid:04x} not on LampArray whitelist"
+            )));
+        }
+        let aura_type = AuraDeviceType::from(prod_id);
+        info!("Found HID LampArray ASUS keyboard 0b05:{pid:04x}");
+        let mut config = AuraConfig::load_and_update_config(prod_id);
+        config.led_type = aura_type;
+        let lamparray = LampArray::new(device, Arc::new(Mutex::new(config)));
+        lamparray.do_initialization().await?;
+        info!("LampArray ready: 0b05:{pid:04x} on {dev_path:?}");
+        Ok(Self::LampArray(lamparray))
     }
 }

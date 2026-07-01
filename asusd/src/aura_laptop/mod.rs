@@ -5,7 +5,7 @@ use config_traits::StdConfig;
 use log::info;
 use rog_aura::keyboard::{AuraLaptopUsbPackets, LedUsbPackets};
 use rog_aura::usb::{AURA_LAPTOP_LED_APPLY, AURA_LAPTOP_LED_SET};
-use rog_aura::{AuraDeviceType, AuraEffect, LedBrightness, PowerZones, AURA_LAPTOP_LED_MSG_LEN};
+use rog_aura::{AuraDeviceType, AuraEffect, PowerZones, AURA_LAPTOP_LED_MSG_LEN, LedBrightness};
 use rog_platform::hid_raw::HidRaw;
 use rog_platform::keyboard_led::KeyboardBacklight;
 use tokio::sync::{Mutex, MutexGuard};
@@ -15,6 +15,12 @@ use crate::error::RogError;
 pub mod config;
 pub mod trait_impls;
 
+/// Aura keyboard controller for USB/asus-wmi path.
+///
+/// This is the legacy path: HID over USB with the ASUS proprietary aura
+/// protocol, or TUF sysfs backlight. LampArray devices (HID Usage Page 0x59
+/// on I2C-HID) live in the sibling module `aura_lamparray` and no longer
+/// pollute this struct with `is_lamparray` branches.
 #[derive(Debug, Clone)]
 pub struct Aura {
     pub hid: Option<Arc<Mutex<HidRaw>>>,
@@ -65,7 +71,6 @@ impl Aura {
                 info!("No user-set config for zone founding, attempting a default");
                 config.create_multizone_default()?;
             }
-
             if let Some(multizones) = config.multizone.as_mut() {
                 if let Some(set) = multizones.get(&mode) {
                     for mode in set.clone() {
@@ -80,7 +85,6 @@ impl Aura {
                     .await?;
             }
         }
-
         Ok(())
     }
 
@@ -123,7 +127,6 @@ impl Aura {
         } else {
             return Err(RogError::NoAuraKeyboard);
         }
-
         Ok(())
     }
 
@@ -163,7 +166,6 @@ impl Aura {
                     return Ok(());
                 }
             }
-
             let bytes = config.enabled.to_bytes(config.led_type);
             let msg = [
                 0x5d, 0xbd, 0x01, bytes[0], bytes[1], bytes[2], bytes[3],
@@ -185,10 +187,8 @@ impl Aura {
             config.brightness = LedBrightness::Med;
             config.write();
         }
-
         let pkt_type = effect[0][1];
         const PER_KEY_TYPE: u8 = 0xbc;
-
         if let Some(hid_raw) = &self.hid {
             let hid_raw = hid_raw.lock().await;
             if pkt_type != PER_KEY_TYPE {
