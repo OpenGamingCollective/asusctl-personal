@@ -9,6 +9,7 @@ use rog_aura::usb::{AURA_LAPTOP_LED_APPLY, AURA_LAPTOP_LED_SET};
 use rog_aura::{AuraDeviceType, AuraEffect, AuraModeNum, LedBrightness, PowerZones, Speed, AURA_LAPTOP_LED_MSG_LEN};
 use rog_platform::hid_raw::HidRaw;
 use rog_platform::keyboard_led::KeyboardBacklight;
+use tokio::runtime::Handle;
 use tokio::sync::{Mutex, MutexGuard};
 use tokio::task::JoinHandle;
 
@@ -34,6 +35,11 @@ pub struct Aura {
     /// effect is written we abort the old task first so we never have two
     /// loops fighting over the hid lock.
     pub effect_task: Arc<Mutex<Option<JoinHandle<()>>>>,
+    /// Tokio runtime handle captured at construction. Used to spawn the
+    /// dynamic-effect task from methods invoked on the zbus executor thread
+    /// (which is *not* a Tokio runtime thread). `Handle::spawn()` works from
+    /// any thread; bare `tokio::spawn()` would panic there.
+    pub runtime_handle: Handle,
 }
 
 impl Aura {
@@ -538,7 +544,7 @@ impl Aura {
         );
 
         let hid_for_task = hid_arc.clone();
-        let handle = tokio::spawn(async move {
+        let handle = self.runtime_handle.spawn(async move {
             let mut ticker =
                 tokio::time::interval(Duration::from_millis(frame_ms));
             // Discard the immediate first tick so the loop pacing is stable.
