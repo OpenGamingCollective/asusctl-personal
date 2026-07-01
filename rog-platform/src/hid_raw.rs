@@ -9,6 +9,21 @@ use log::{error, info, warn};
 use udev::Device;
 use crate::error::{PlatformError, Result};
 
+/// info! only in debug builds — release stays quiet.
+///
+/// Wraps the low-level per-step / per-syscall trace so `cargo build --release`
+/// produces a journal that only contains lifecycle events. The identical
+/// definition lives in `asusd/src/aura_lamparray/mod.rs` and friends; kept
+/// duplicated because we don't want a shared debug-log crate for one macro.
+macro_rules! debug_info {
+    ($($arg:tt)*) => {{
+        if cfg!(debug_assertions) {
+            log::info!($($arg)*);
+        }
+    }};
+}
+
+
 /// Matches the kernel `struct hidraw_devinfo` (8 bytes total).
 #[repr(C)]
 pub struct HidrawDevinfo {
@@ -143,19 +158,19 @@ impl HidRaw {
             .sysname()
             .to_string_lossy()
             .to_string();
-        info!(
+        debug_info!(
             "HidRaw::from_i2c_device: begin sysname={} prod_id={}",
             sysname_dbg, prod_id
         );
-        info!("HidRaw::from_i2c_device: querying devnode for sysname={}", sysname_dbg);
+        debug_info!("HidRaw::from_i2c_device: querying devnode for sysname={}", sysname_dbg);
         let dev_node = endpoint.devnode().ok_or_else(|| {
             PlatformError::MissingFunction("I2C-HID endpoint has no devnode".to_string())
         })?;
-        info!(
+        debug_info!(
             "HidRaw::from_i2c_device: devnode={:?} sysname={}",
             dev_node, sysname_dbg
         );
-        info!(
+        debug_info!(
             "HidRaw::from_i2c_device: opening {:?} R/W (O_NONBLOCK) for prod_id={}",
             dev_node, prod_id
         );
@@ -166,17 +181,17 @@ impl HidRaw {
             .open(dev_node)
             .map_err(|e| PlatformError::IoPath(dev_node.to_string_lossy().to_string(), e))?;
         let fd = file.as_raw_fd();
-        info!(
+        debug_info!(
             "HidRaw::from_i2c_device: file opened fd={} dev_node={:?}",
             fd, dev_node
         );
-        info!("HidRaw::from_i2c_device: about to query syspath for sysname={}", sysname_dbg);
+        debug_info!("HidRaw::from_i2c_device: about to query syspath for sysname={}", sysname_dbg);
         let syspath = endpoint.syspath().to_path_buf();
-        info!(
+        debug_info!(
             "HidRaw::from_i2c_device: syspath={:?} sysname={}",
             syspath, sysname_dbg
         );
-        info!(
+        debug_info!(
             "HidRaw::from_i2c_device: returning OK for sysname={} fd={}",
             sysname_dbg, fd
         );
@@ -226,7 +241,7 @@ impl HidRaw {
             vendor: 0,
             product: 0,
         };
-        info!(
+        debug_info!(
             "HidRaw::raw_info: fd={} ioctl=0x{:08x} struct_size={}",
             fd,
             req,
@@ -252,7 +267,7 @@ impl HidRaw {
                 err,
             ));
         }
-        info!(
+        debug_info!(
             "HidRaw::raw_info: ok bus={:#x} vendor={:#06x} product={:#06x}",
             info.bustype,
             info.vendor as u16,
