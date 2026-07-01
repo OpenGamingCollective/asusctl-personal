@@ -12,6 +12,7 @@ pub mod ctrl_xgm_led;
 
 pub mod asus_armoury;
 pub mod aura_anime;
+pub mod aura_lamparray;
 pub mod aura_laptop;
 pub mod aura_manager;
 pub mod aura_scsi;

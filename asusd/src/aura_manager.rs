@@ -3,7 +3,6 @@
 // - If a device is found, add it to watch
 // - Add it to Zbus server
 // - If udev sees device removed then remove the zbus path
-
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
@@ -18,6 +17,7 @@ use zbus::zvariant::{ObjectPath, OwnedObjectPath};
 use zbus::Connection;
 
 use crate::aura_anime::trait_impls::AniMeZbus;
+use crate::aura_lamparray::trait_impls::LampArrayZbus;
 use crate::aura_laptop::trait_impls::AuraZbus;
 use crate::aura_scsi::trait_impls::ScsiZbus;
 use crate::aura_slash::trait_impls::SlashZbus;
@@ -26,6 +26,15 @@ use crate::error::RogError;
 use crate::ASUS_ZBUS_PATH;
 
 const MOD_NAME: &str = "aura";
+
+/// info! only in debug builds — release stays quiet.
+macro_rules! debug_info {
+    ($($arg:tt)*) => {{
+        if cfg!(debug_assertions) {
+            log::info!($($arg)*);
+        }
+    }};
+}
 
 /// Returns only the Device details concatenated in a form usable for
 /// adding/appending to a filename
@@ -110,11 +119,9 @@ impl DeviceManager {
             .devnode()
             .ok_or_else(|| RogError::MissingFunction("hidraw devnode missing".to_string()))?;
         let key = dev_node.to_string_lossy().to_string();
-
         if let Some(existing) = handles.lock().await.get(&key).cloned() {
             return Ok((existing, key));
         }
-
         let hidraw = HidRaw::from_device(endpoint.clone())?;
         let handle = Arc::new(Mutex::new(hidraw));
         handles.lock().await.insert(key.clone(), handle.clone());
@@ -132,9 +139,10 @@ impl DeviceManager {
             .devnode()
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_else(|| "<none>".to_string());
-        info!(
+        debug_info!(
             "init_hid_devices: probing hidraw sysname={sysname_dbg} devnode={devnode_dbg}"
         );
+
         if let Some(usb_device) = device.parent_with_subsystem_devtype("usb", "usb_device")? {
             if let Some(usb_id) = usb_device.attribute_value("idProduct") {
                 if let Some(vendor_id) = usb_device.attribute_value("idVendor") {
@@ -215,12 +223,12 @@ impl DeviceManager {
             }
         }
         if devices.is_empty() {
-            info!(
+            debug_info!(
                 "init_hid_devices: no USB-side device matched for {sysname_dbg}, trying I2C-HID fallback"
             );
             match Self::init_i2c_hid_device(connection, &device, handles.clone()).await {
                 Ok(mut found) => {
-                    info!(
+                    debug_info!(
                         "init_hid_devices: I2C-HID fallback for {sysname_dbg} returned {} device(s)",
                         found.len()
                     );
@@ -243,7 +251,7 @@ impl DeviceManager {
     ) -> Result<Vec<AsusDevice>, RogError> {
         let mut devices = Vec::new();
         let sysname = endpoint.sysname().to_string_lossy().to_string();
-        info!("I2C-HID probe: examining hidraw {sysname}");
+        debug_info!("I2C-HID probe: examining hidraw {sysname}");
         let mut hid_id: Option<String> = None;
         let mut cur = endpoint.parent();
         while let Some(p) = cur {
@@ -254,13 +262,13 @@ impl DeviceManager {
             cur = p.parent();
         }
         let Some(hid_id) = hid_id else {
-            info!("I2C-HID probe: no HID_ID property found for {sysname}");
+            debug_info!("I2C-HID probe: no HID_ID property found for {sysname}");
             return Ok(devices);
         };
-        info!("I2C-HID probe: {sysname} HID_ID={hid_id}");
+        debug_info!("I2C-HID probe: {sysname} HID_ID={hid_id}");
         let parts: Vec<&str> = hid_id.split(':').collect();
         if parts.len() != 3 {
-            info!("I2C-HID probe: HID_ID has unexpected shape: {hid_id}");
+            debug_info!("I2C-HID probe: HID_ID has unexpected shape: {hid_id}");
             return Ok(devices);
         }
         // The HID_ID format is "BUS:VENDOR:PRODUCT" where VENDOR and PRODUCT are
@@ -271,11 +279,11 @@ impl DeviceManager {
         let product_str = parts[2];
         let vendor = u32::from_str_radix(vendor_str, 16).unwrap_or(0xFFFF_FFFF);
         let product = u32::from_str_radix(product_str, 16).unwrap_or(0xFFFF_FFFF);
-        info!(
+        debug_info!(
             "I2C-HID probe: VID parsing raw='{vendor_str}' parsed=0x{vendor:08x}; PID parsing raw='{product_str}' parsed=0x{product:08x}"
         );
         if vendor != 0x0b05 {
-            info!(
+            debug_info!(
                 "I2C-HID probe: not ASUS vendor 0x{vendor:08x} (raw '{vendor_str}'), skipping {sysname}"
             );
             return Ok(devices);
@@ -286,8 +294,8 @@ impl DeviceManager {
         info!(
             "Found ASUS HID LampArray candidate: {sysname} VID={vid_upper} PID={pid_upper}"
         );
-        info!("VID match: proceeding to open hidraw for {sysname}");
-        info!("Step1: about to query devnode for {sysname}");
+        debug_info!("VID match: proceeding to open hidraw for {sysname}");
+        debug_info!("Step1: about to query devnode for {sysname}");
         let dev_node = match endpoint.devnode() {
             Some(n) => n,
             None => {
@@ -297,24 +305,27 @@ impl DeviceManager {
                 ));
             }
         };
-        info!("Step2: devnode={dev_node:?} for {sysname}");
-        info!("I2C-HID probe: devnode={dev_node:?} for {sysname}");
+        debug_info!("Step2: devnode={dev_node:?} for {sysname}");
         let key = dev_node.to_string_lossy().to_string();
-        info!("Step3a: about to take handles map lock for cache lookup key={key}");
+        debug_info!("Step3a: about to take handles map lock for cache lookup key={key}");
         let cached = handles.lock().await.get(&key).cloned();
-        info!("Step3b: handles map lock released for {key} cached={}", cached.is_some());
+        debug_info!(
+            "Step3b: handles map lock released for {key} cached={}",
+            cached.is_some()
+        );
         let handle = if let Some(existing) = cached {
-            info!("I2C-HID probe: reusing existing hidraw handle for {key}");
+            debug_info!("I2C-HID probe: reusing existing hidraw handle for {key}");
             existing
         } else {
-            info!("Step3c: about to call HidRaw::from_i2c_device for {key} prod_id={prod_id_str}");
-            info!("I2C-HID probe: creating HidRaw::from_i2c_device for {key} prod_id={prod_id_str}");
+            debug_info!(
+                "Step3c: about to call HidRaw::from_i2c_device for {key} prod_id={prod_id_str}"
+            );
             // udev::Device contains a raw `*mut udev` and is !Send, so we
             // cannot ship it into spawn_blocking. Instead we call the
-            // synchronous constructor here -- the actual blocking syscall is
+            // synchronous constructor here — the actual blocking syscall is
             // the OpenOptions::open in from_i2c_device, and we mitigate that
             // separately by passing O_NONBLOCK there.
-            info!("Step3d: calling HidRaw::from_i2c_device synchronously for {key}");
+            debug_info!("Step3d: calling HidRaw::from_i2c_device synchronously for {key}");
             let hidraw_res = HidRaw::from_i2c_device(endpoint.clone(), &prod_id_str);
             let hidraw = match hidraw_res {
                 Ok(h) => h,
@@ -325,30 +336,31 @@ impl DeviceManager {
                     return Err(e.into());
                 }
             };
-            info!("Step4: hidraw handle created for {key}");
-            info!("I2C-HID probe: HidRaw::from_i2c_device returned OK for {key}");
+            debug_info!("Step4: hidraw handle created for {key}");
             let h = Arc::new(Mutex::new(hidraw));
-            info!("Step4b: about to insert handle into handles map key={key}");
+            debug_info!("Step4b: about to insert handle into handles map key={key}");
             handles.lock().await.insert(key.clone(), h.clone());
-            info!("Step4c: handle inserted into handles map key={key}");
+            debug_info!("Step4c: handle inserted into handles map key={key}");
             h
         };
-        info!("Step5: about to call DeviceHandle::maybe_lamparray for {sysname} prod_id={prod_id_str}");
-        info!("Calling DeviceHandle::maybe_lamparray for {sysname} prod_id={prod_id_str}");
+        debug_info!(
+            "Step5: about to call DeviceHandle::maybe_lamparray for {sysname} prod_id={prod_id_str}"
+        );
+        debug_info!("Calling DeviceHandle::maybe_lamparray for {sysname} prod_id={prod_id_str}");
         let result = DeviceHandle::maybe_lamparray(handle, &prod_id_str).await;
-        info!("Step6: maybe_lamparray returned for {sysname}");
+        debug_info!("Step6: maybe_lamparray returned for {sysname}");
         match result {
             Ok(dev_type) => {
-                info!("maybe_lamparray OK for {sysname}");
-                if let DeviceHandle::Aura(aura) = dev_type.clone() {
+                debug_info!("maybe_lamparray OK for {sysname}");
+                if let DeviceHandle::LampArray(lamparray) = dev_type.clone() {
                     let path: OwnedObjectPath = ObjectPath::from_str_unchecked(&format!(
                         "{ASUS_ZBUS_PATH}/{MOD_NAME}/lamparray_{prod_id_str}"
                     ))
                     .into();
                     info!("Registering LampArray device on zbus at path={path:?}");
-                    let ctrl = AuraZbus::new(aura);
+                    let ctrl = LampArrayZbus::new(lamparray);
                     match ctrl.start_tasks(connection, path.clone()).await {
-                        Ok(_) => info!("LampArray zbus start_tasks OK for {path:?}"),
+                        Ok(_) => debug_info!("LampArray zbus start_tasks OK for {path:?}"),
                         Err(e) => {
                             error!(
                                 "LampArray zbus start_tasks FAILED for {path:?}: {e:?}"
@@ -361,10 +373,10 @@ impl DeviceManager {
                         dbus_path: path.clone(),
                         hid_key: Some(key),
                     });
-                    info!("LampArray device added to manager at {path:?}");
+                    debug_info!("LampArray device added to manager at {path:?}");
                 } else {
-                    info!(
-                        "maybe_lamparray returned non-Aura variant for {sysname}, ignoring"
+                    debug_info!(
+                        "maybe_lamparray returned non-LampArray variant for {sysname}, ignoring"
                     );
                 }
             }
@@ -386,17 +398,15 @@ impl DeviceManager {
         // interfere with the kernel's own HID driver and trigger a USB reset loop.
         let mut seen_usb_parents: HashSet<String> = HashSet::new();
         let mut devices: Vec<AsusDevice> = Vec::new();
-
         let mut enumerator = udev::Enumerator::new().map_err(|err| {
             warn!("{}", err);
             PlatformError::Udev("enumerator failed".into(), err)
         })?;
-
         enumerator.match_subsystem("hidraw").map_err(|err| {
             warn!("{}", err);
             PlatformError::Udev("match_subsystem failed".into(), err)
         })?;
-
+        debug_info!("LampArray initial enumeration: scanning hidraw devices");
         for device in enumerator
             .scan_devices()
             .map_err(|e| PlatformError::IoPath("enumerator".to_owned(), e))?
@@ -414,7 +424,6 @@ impl DeviceManager {
             }
             devices.append(&mut Self::init_hid_devices(connection, device, handles.clone()).await?);
         }
-
         Ok(devices)
     }
 
@@ -453,17 +462,14 @@ impl DeviceManager {
         // track and ensure we use only one hidraw per prod_id
         // let mut interfaces = HashSet::new();
         let mut devices: Vec<AsusDevice> = Vec::new();
-
         let mut enumerator = udev::Enumerator::new().map_err(|err| {
             warn!("{}", err);
             PlatformError::Udev("enumerator failed".into(), err)
         })?;
-
         enumerator.match_subsystem("block").map_err(|err| {
             warn!("{}", err);
             PlatformError::Udev("match_subsystem failed".into(), err)
         })?;
-
         let mut found = Vec::new();
         for device in enumerator
             .scan_devices()
@@ -475,7 +481,6 @@ impl DeviceManager {
                 if found.contains(&path) {
                     continue;
                 }
-
                 if let Some(dev) = Self::init_scsi(connection, &device, path.clone()).await {
                     devices.push(dev);
                     found.push(path);
@@ -484,7 +489,6 @@ impl DeviceManager {
                 debug!("No serial for SCSI device: {:?}", device.devpath());
             }
         }
-
         Ok(devices)
     }
 
@@ -508,11 +512,13 @@ impl DeviceManager {
             if matches!(dev.device, DeviceHandle::AniMe(_)) {
                 do_anime = false;
             }
-            if matches!(dev.device, DeviceHandle::Aura(_) | DeviceHandle::OldAura(_)) {
+            if matches!(
+                dev.device,
+                DeviceHandle::Aura(_) | DeviceHandle::OldAura(_) | DeviceHandle::LampArray(_)
+            ) {
                 do_kb_backlight = false;
             }
         }
-
         if do_slash {
             if let Ok(dev_type) = DeviceHandle::new_slash_usb().await {
                 if let DeviceHandle::Slash(slash) = dev_type.clone() {
@@ -529,7 +535,6 @@ impl DeviceManager {
                 info!("Tested device was not Slash");
             }
         }
-
         if do_anime {
             if let Ok(dev_type) = DeviceHandle::maybe_anime_usb().await {
                 // TODO: this is copy/pasted
@@ -553,7 +558,6 @@ impl DeviceManager {
                 info!("Tested device was not AniMe Matrix");
             }
         }
-
         if do_kb_backlight {
             // TUF AURA LAPTOP DEVICE
             // product_name = ASUS TUF Gaming F15 FX507ZE_FX507ZE
@@ -579,11 +583,9 @@ impl DeviceManager {
                 }
             }
         }
-
         if let Ok(devs) = &mut Self::init_all_scsi(connection).await {
             devices.append(devs);
         }
-
         devices
     }
 
@@ -597,10 +599,8 @@ impl DeviceManager {
             _dbus_connection: connection,
             _hid_handles: hid_handles.clone(),
         };
-
         // TODO: The /sysfs/ LEDs don't cause events, so they need to be manually
         // checked for and added
-
         let hid_handles_thread = hid_handles.clone();
         std::thread::spawn(move || {
             let mut monitor = MonitorBuilder::new()?.listen()?;
@@ -608,7 +608,6 @@ impl DeviceManager {
             let mut events = Events::with_capacity(1024);
             poll.registry()
                 .register(&mut monitor, Token(0), Interest::READABLE)?;
-
             let rt = tokio::runtime::Runtime::new().expect("Unable to create Runtime");
             let _enter = rt.enter();
             loop {
@@ -621,13 +620,11 @@ impl DeviceManager {
                         .unwrap_or_default()
                         .to_string_lossy()
                         .to_string();
-
                     let subsys = if let Some(subsys) = event.subsystem() {
                         subsys.to_string_lossy().to_string()
                     } else {
                         continue;
                     };
-
                     let devices = devices.clone();
                     let conn_copy = conn_copy.clone();
                     let hid_handles = hid_handles_thread.clone();
@@ -640,7 +637,6 @@ impl DeviceManager {
                                 {
                                     let serial = serial.to_string_lossy().to_string();
                                     let path = dbus_path_for_scsi(&serial);
-
                                     let index = if let Some(index) = devices
                                         .lock()
                                         .await
@@ -678,7 +674,6 @@ impl DeviceManager {
                                 }
                             };
                         }
-
                         if subsys == "hidraw" {
                             if action == "remove" {
                                 // Key cleanup off the removed hidraw node itself, NOT the
@@ -723,6 +718,12 @@ impl DeviceManager {
                                                 conn_copy
                                                     .object_server()
                                                     .remove::<AuraZbus, _>(&path)
+                                                    .await?
+                                            }
+                                            DeviceHandle::LampArray(_) => {
+                                                conn_copy
+                                                    .object_server()
+                                                    .remove::<LampArrayZbus, _>(&path)
                                                     .await?
                                             }
                                             DeviceHandle::Slash(_) => {
